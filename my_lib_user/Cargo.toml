@@ -1,0 +1,7 @@
+[package]
+name = "my_lib_user"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+my_super_lib = { path = "../my_super_lib" }
