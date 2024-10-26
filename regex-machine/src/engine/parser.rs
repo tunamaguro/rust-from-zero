@@ -102,6 +102,20 @@ fn parse_plus_star_question(
     }
 }
 
+/// `|`をASTに変換する
+fn fold_or(mut seq_or: Vec<AST>) -> Option<AST> {
+    if seq_or.len() > 1 {
+        let mut ast = seq_or.pop()?;
+        seq_or.reverse();
+        for s in seq_or {
+            ast = AST::Or(Box::new(s), Box::new(ast))
+        }
+        Some(ast)
+    } else {
+        seq_or.pop()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -151,5 +165,55 @@ mod tests {
                 .unwrap(),
             ParseError::NoPrev(1)
         );
+    }
+
+    #[test]
+    fn valid_or() {
+        // abc|123
+        let seq = vec![
+            AST::Seq(vec![AST::Char('a'), AST::Char('b'), AST::Char('c')]),
+            AST::Seq(vec![AST::Char('1'), AST::Char('2'), AST::Char('3')]),
+        ];
+
+        let res = fold_or(seq).unwrap();
+
+        assert_eq!(
+            res,
+            AST::Or(
+                Box::new(AST::Seq(vec![
+                    AST::Char('a'),
+                    AST::Char('b'),
+                    AST::Char('c')
+                ])),
+                Box::new(AST::Seq(vec![
+                    AST::Char('1'),
+                    AST::Char('2'),
+                    AST::Char('3')
+                ]))
+            )
+        );
+
+        // foo
+        let seq = vec![AST::Seq(vec![
+            AST::Char('f'),
+            AST::Char('o'),
+            AST::Char('o'),
+        ])];
+
+        let res = fold_or(seq).unwrap();
+
+        assert_eq!(
+            res,
+            AST::Seq(vec![AST::Char('f'), AST::Char('o'), AST::Char('o'),])
+        )
+    }
+
+    #[test]
+    #[should_panic]
+    fn invalid_or() {
+        // empty
+        let seq = vec![];
+
+        fold_or(seq).unwrap();
     }
 }
