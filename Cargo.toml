@@ -6,4 +6,4 @@ edition = "2021"
 [dependencies]
 
 [workspace]
-members = ["markdown", "my_super_lib", "my_lib_user"]
+members = ["markdown", "my_super_lib", "my_lib_user", "regex-machine"]

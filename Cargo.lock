@@ -107,6 +107,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "regex-machine"
+version = "0.1.0"
+
+[[package]]
 name = "rust-from-zero"
 version = "0.1.0"
 
