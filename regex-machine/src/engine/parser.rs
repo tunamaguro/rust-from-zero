@@ -116,6 +116,91 @@ fn fold_or(mut seq_or: Vec<AST>) -> Option<AST> {
     }
 }
 
+/// `parse`の内部状態を示す型
+enum ParseState {
+    /// 文字列処理中
+    Char,
+    /// エスケープ処理中
+    Escape,
+}
+
+pub fn parse(expr: &str) -> Result<AST, ParseError> {
+    let mut seq = Vec::new();
+    let mut seq_or = Vec::new();
+    // `()`が出てきたときに、それ以前の値を取っておく場所
+    let mut stack = Vec::new();
+    let mut state = ParseState::Char;
+
+    for (idx, c) in expr.chars().enumerate() {
+        match state {
+            ParseState::Char => match c {
+                '+' => parse_plus_star_question(&mut seq, PSQ::Plus, idx)?,
+                '*' => parse_plus_star_question(&mut seq, PSQ::Star, idx)?,
+                '?' => parse_plus_star_question(&mut seq, PSQ::Question, idx)?,
+                '(' => {
+                    // 現在の状態をスタックに避難させる
+                    let prev = take(&mut seq);
+                    let prev_or = take(&mut seq_or);
+                    stack.push((prev, prev_or));
+                }
+                ')' => {
+                    let Some((mut prev, prev_or)) = stack.pop() else {
+                        return Err(ParseError::InvalidRightParen(idx));
+                    };
+                    
+                    // `(abc|def)`みたいなときに`def`が`seq`に入ってるので、`seq_or`に追加する
+                    // `()`みたいなときは何もしない
+                    if !seq.is_empty() {
+                        seq_or.push(AST::Seq(seq));
+                    }
+                    
+                    
+                    if let Some(ast) = fold_or(seq_or) {
+                        prev.push(ast);
+                    }
+
+                    // 過去の状態を復元する
+                    seq = prev;
+                    seq_or = prev_or;
+                }
+                '|' => {
+                    if seq.is_empty() {
+                        return Err(ParseError::NoPrev(idx));
+                    } else {
+                        let prev = take(&mut seq);
+                        seq_or.push(AST::Seq(prev));
+                    }
+                }
+                '\\' => state = ParseState::Escape,
+                _ => {
+                    seq.push(AST::Char(c));
+                }
+            },
+            ParseState::Escape => {
+                let ast = parse_escape(idx, c)?;
+                seq.push(ast);
+                state = ParseState::Char
+            }
+        };
+    }
+
+    // `)`が足りてないときはエラー
+    // `(`と`)`が同じ数あるときは、スタックは空になるはず
+    if !stack.is_empty() {
+        return Err(ParseError::NoRightParen);
+    };
+
+    if !seq.is_empty() {
+        seq_or.push(AST::Seq(seq));
+    };
+
+    if let Some(ast) = fold_or(seq_or) {
+        Ok(ast)
+    } else {
+        Err(ParseError::Empty)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -215,5 +300,108 @@ mod tests {
         let seq = vec![];
 
         fold_or(seq).unwrap();
+    }
+
+    #[test]
+    fn simple_regex() {
+        let regex = "abc";
+
+        let ast = parse(regex).unwrap();
+
+        assert_eq!(
+            ast,
+            AST::Seq(vec![AST::Char('a'), AST::Char('b'), AST::Char('c'),])
+        )
+    }
+
+    #[test]
+    fn escaped_regex() {
+        let regex = r"1\?\*23";
+
+        let ast = parse(regex).unwrap();
+
+        assert_eq!(
+            ast,
+            AST::Seq(vec![
+                AST::Char('1'),
+                AST::Char('?'),
+                AST::Char('*'),
+                AST::Char('2'),
+                AST::Char('3')
+            ])
+        )
+    }
+
+    #[test]
+    fn plus_star_question_regex() {
+        let regex = r"b?+*";
+
+        let ast = parse(regex).unwrap();
+
+        assert_eq!(
+            ast,
+            AST::Seq(vec![AST::Star(Box::new(AST::Plus(Box::new(
+                AST::Question(Box::new(AST::Char('b')))
+            ))))])
+        )
+    }
+
+    #[test]
+    fn or_regex() {
+        let regex = r"abc|123";
+
+        let ast = parse(regex).unwrap();
+
+        assert_eq!(
+            ast,
+            AST::Or(
+                Box::new(AST::Seq(vec![
+                    AST::Char('a'),
+                    AST::Char('b'),
+                    AST::Char('c'),
+                ])),
+                Box::new(AST::Seq(vec![
+                    AST::Char('1'),
+                    AST::Char('2'),
+                    AST::Char('3'),
+                ]))
+            )
+        )
+    }
+
+    #[test]
+    fn nested_paren_regex() {
+        let regex = r"(abc(123)def)";
+
+        let ast = parse(regex).unwrap();
+
+        assert_eq!(
+            ast,
+            AST::Seq(vec![AST::Seq(vec![
+                AST::Char('a'),
+                AST::Char('b'),
+                AST::Char('c'),
+                AST::Seq(vec![AST::Char('1'), AST::Char('2'), AST::Char('3'),]),
+                AST::Char('d'),
+                AST::Char('e'),
+                AST::Char('f')
+            ]),])
+        )
+    }
+
+    #[test]
+    fn invalid_right_paren() {
+        let regex = r"abc)";
+
+        let err = parse(regex).err().unwrap();
+        assert_eq!(err, ParseError::InvalidRightParen(3))
+    }
+
+    #[test]
+    fn missing_right_paren() {
+        let regex = r"(abc(123)";
+
+        let err = parse(regex).err().unwrap();
+        assert_eq!(err, ParseError::NoRightParen)
     }
 }
