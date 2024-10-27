@@ -1,5 +1,6 @@
-mod parser;
 mod codegen;
+mod evaluator;
+mod parser;
 
 /// 内部的に扱う疑似アセンブリの型  
 /// P131を参照のこと
