@@ -1,3 +1,5 @@
+use crate::helper::DynError;
+
 mod codegen;
 mod evaluator;
 mod parser;
@@ -25,4 +27,20 @@ impl std::fmt::Display for Instruction {
             Instruction::Split(x, y) => write!(f, "split {x:>04}, {y:>04}"),
         }
     }
+}
+
+/// 正規表現を用いて、文字列とマッチングを行う
+///
+/// ```
+/// use regex_machine::engine;
+/// assert!(engine::do_matching("abc|(de|cd)+","decddede",true).unwrap());
+/// ```
+/// 
+pub fn do_matching(expr: &str, line: &str, is_depth: bool) -> Result<bool, DynError> {
+    let ast = parser::parse(expr).map_err(Box::new)?;
+    let code = codegen::get_code(&ast).map(Box::new)?;
+    let line = line.chars().collect::<Vec<char>>();
+    let result = evaluator::eval(&code, &line, is_depth).map_err(Box::new)?;
+
+    Ok(result)
 }

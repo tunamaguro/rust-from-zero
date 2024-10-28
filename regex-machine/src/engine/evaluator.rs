@@ -25,7 +25,7 @@ impl std::fmt::Display for EvalError {
 
 impl std::error::Error for EvalError {}
 
-fn eval_depth(
+pub fn eval_depth(
     insts: &[Instruction],
     line: &[char],
     mut pc: usize,
@@ -35,7 +35,6 @@ fn eval_depth(
         let Some(next) = insts.get(pc) else {
             return Err(EvalError::InvalidPC);
         };
-
         match next {
             Instruction::Char(c) => {
                 let Some(sp_c) = line.get(sp) else {
@@ -63,5 +62,169 @@ fn eval_depth(
                 }
             }
         }
+    }
+}
+
+fn eval_width(insts: &[Instruction], line: &[char]) -> Result<bool, EvalError> {
+    let mut queue = VecDeque::<(usize, usize)>::new();
+    let mut pc = 0;
+    let mut sp = 0;
+    loop {
+        let Some(next) = insts.get(pc) else {
+            return Err(EvalError::InvalidPC);
+        };
+        match next {
+            Instruction::Char(c) => {
+                let Some(sp_c) = line.get(sp) else {
+                    return Err(EvalError::InvalidPC);
+                };
+                if sp_c == c {
+                    safe_add(&mut pc, &1, || EvalError::PCOverFlow)?;
+                    safe_add(&mut sp, &1, || EvalError::SPOverFlow)?;
+                } else {
+                    // 分岐がもうないとき
+                    if queue.is_empty() {
+                        return Ok(false);
+                    } else {
+                        let Some(branch) = queue.pop_front() else {
+                            return Err(EvalError::InvalidContext);
+                        };
+                        pc = branch.0;
+                        sp = branch.1;
+                    }
+                }
+            }
+            Instruction::Match => {
+                return Ok(true);
+            }
+            Instruction::Jump(addr) => {
+                pc = *addr;
+            }
+            Instruction::Split(addr1, addr2) => {
+                // プログラムカウンタをセットして、ブランチをプッシュ
+                pc = *addr1;
+                queue.push_back((*addr2, sp));
+                continue;
+            }
+        }
+
+        if !queue.is_empty() {
+            queue.push_back((pc, sp));
+            let Some(branch) = queue.pop_front() else {
+                return Err(EvalError::InvalidContext);
+            };
+            pc = branch.0;
+            sp = branch.1;
+        }
+    }
+}
+
+pub fn eval(insts: &[Instruction], line: &[char], is_depth: bool) -> Result<bool, EvalError> {
+    if is_depth {
+        eval_depth(insts, line, 0, 0)
+    } else {
+        eval_width(insts, line)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::engine::{codegen, parser};
+
+    use super::*;
+
+    fn to_insts(regex: &str) -> Vec<Instruction> {
+        let ast = parser::parse(regex).unwrap();
+
+        codegen::get_code(&ast).unwrap()
+    }
+
+    fn to_chars(s: &str) -> Vec<char> {
+        s.chars().collect()
+    }
+
+    #[test]
+    fn test_simple() {
+        let regex = "abc";
+        let line = to_chars("abcde");
+        let insts = to_insts(regex);
+
+        let res = eval_depth(&insts, &line, 0, 0).unwrap();
+        assert!(res);
+
+        let res = eval_width(&insts, &line).unwrap();
+        assert!(res)
+    }
+
+    #[test]
+    fn test_question() {
+        let regex = "a?";
+        let line = to_chars("ab");
+        let insts = to_insts(regex);
+
+        let res = eval_depth(&insts, &line, 0, 0).unwrap();
+        assert!(res);
+
+        let res = eval_width(&insts, &line).unwrap();
+        assert!(res)
+    }
+
+    #[test]
+    fn test_plus() {
+        let regex = "a+";
+        let line = to_chars("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+        let insts = to_insts(regex);
+
+        let res = eval_depth(&insts, &line, 0, 0).unwrap();
+        assert!(res);
+
+        let res = eval_width(&insts, &line).unwrap();
+        assert!(res);
+
+        let line = to_chars("b");
+        let insts = to_insts(regex);
+
+        let res = eval_depth(&insts, &line, 0, 0).unwrap();
+        assert!(!res);
+
+        let res = eval_width(&insts, &line).unwrap();
+        assert!(!res)
+    }
+
+    #[test]
+    fn test_star() {
+        let regex = "a*";
+        let line = to_chars("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+        let insts = to_insts(regex);
+
+        let res = eval_depth(&insts, &line, 0, 0).unwrap();
+        assert!(res);
+
+        let res = eval_width(&insts, &line).unwrap();
+        assert!(res);
+
+        // `*`は0文字でもマッチするためこっちはなし
+    }
+
+    #[test]
+    fn test_or() {
+        let regex = "abc|123|def";
+        let line = to_chars("def");
+        let insts = to_insts(regex);
+
+        let res = eval_depth(&insts, &line, 0, 0).unwrap();
+        assert!(res);
+
+        let res = eval_width(&insts, &line).unwrap();
+        assert!(res);
+
+        let line = to_chars("ab3");
+        let insts = to_insts(regex);
+
+        let res = eval_depth(&insts, &line, 0, 0).unwrap();
+        assert!(!res);
+
+        let res = eval_width(&insts, &line).unwrap();
+        assert!(!res)
     }
 }

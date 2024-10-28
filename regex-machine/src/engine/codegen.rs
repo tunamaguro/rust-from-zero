@@ -140,6 +140,19 @@ impl Generator {
 
         Ok(())
     }
+
+    fn gen_code(&mut self, ast: &AST) -> Result<(), CodeGenError> {
+        self.gen_expr(ast)?;
+        self.inc_pc()?;
+        self.insts.push(Instruction::Match);
+        Ok(())
+    }
+}
+
+pub fn get_code(ast: &AST) -> Result<Vec<Instruction>, CodeGenError> {
+    let mut generator = Generator::default();
+    generator.gen_code(ast)?;
+    Ok(generator.insts)
 }
 
 #[cfg(test)]
