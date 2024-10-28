@@ -147,14 +147,13 @@ pub fn parse(expr: &str) -> Result<AST, ParseError> {
                     let Some((mut prev, prev_or)) = stack.pop() else {
                         return Err(ParseError::InvalidRightParen(idx));
                     };
-                    
+
                     // `(abc|def)`みたいなときに`def`が`seq`に入ってるので、`seq_or`に追加する
                     // `()`みたいなときは何もしない
                     if !seq.is_empty() {
                         seq_or.push(AST::Seq(seq));
                     }
-                    
-                    
+
                     if let Some(ast) = fold_or(seq_or) {
                         prev.push(ast);
                     }
