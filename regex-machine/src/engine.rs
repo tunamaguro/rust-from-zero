@@ -18,6 +18,10 @@ pub enum Instruction {
     Split(usize, usize),
     /// どんな文字ともマッチする
     Any,
+    /// 行頭
+    Start,
+    /// 行末
+    End,
 }
 
 impl std::fmt::Display for Instruction {
@@ -28,6 +32,8 @@ impl std::fmt::Display for Instruction {
             Instruction::Jump(x) => write!(f, "jmp {x:>04}"),
             Instruction::Split(x, y) => write!(f, "split {x:>04}, {y:>04}"),
             Instruction::Any => write!(f, "any"),
+            Instruction::Start => write!(f, "start"),
+            Instruction::End => write!(f, "end"),
         }
     }
 }

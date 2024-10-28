@@ -21,6 +21,10 @@ pub enum Ast {
     Seq(Vec<Ast>),
     /// 何らかの文字1文字
     Any,
+    /// 行頭
+    Start,
+    /// 行末
+    End,
 }
 
 /// 正規表現をパースする際のエラー
@@ -175,6 +179,12 @@ pub fn parse(expr: &str) -> Result<Ast, ParseError> {
                 '\\' => state = ParseState::Escape,
                 '.' => {
                     seq.push(Ast::Any);
+                }
+                '^' => {
+                    seq.push(Ast::Start);
+                }
+                '$' => {
+                    seq.push(Ast::End);
                 }
                 _ => {
                     seq.push(Ast::Char(c));
@@ -391,6 +401,33 @@ mod tests {
                 Ast::Char('f')
             ]),])
         )
+    }
+
+    #[test]
+    fn any_regex() {
+        let regex = r"a.";
+
+        let ast = parse(regex).unwrap();
+
+        assert_eq!(ast, Ast::Seq(vec![Ast::Char('a'), Ast::Any]))
+    }
+
+    #[test]
+    fn start_regex() {
+        let regex = r"^a";
+
+        let ast = parse(regex).unwrap();
+
+        assert_eq!(ast, Ast::Seq(vec![Ast::Start, Ast::Char('a'),]))
+    }
+
+    #[test]
+    fn end_regex() {
+        let regex = r"a$";
+
+        let ast = parse(regex).unwrap();
+
+        assert_eq!(ast, Ast::Seq(vec![Ast::Char('a'), Ast::End]))
     }
 
     #[test]

@@ -39,6 +39,8 @@ impl Generator {
             Ast::Or(e1, e2) => self.gen_or(e1, e2),
             Ast::Seq(seq) => self.gen_seq(seq),
             Ast::Any => self.gen_any(),
+            Ast::Start => self.gen_start(),
+            Ast::End => self.gen_end(),
         }
     }
 
@@ -144,6 +146,20 @@ impl Generator {
 
     fn gen_any(&mut self) -> Result<(), CodeGenError> {
         let inst = Instruction::Any;
+        self.insts.push(inst);
+        self.inc_pc()?;
+        Ok(())
+    }
+
+    fn gen_start(&mut self) -> Result<(), CodeGenError> {
+        let inst = Instruction::Start;
+        self.insts.push(inst);
+        self.inc_pc()?;
+        Ok(())
+    }
+
+    fn gen_end(&mut self) -> Result<(), CodeGenError> {
+        let inst = Instruction::End;
         self.insts.push(inst);
         self.inc_pc()?;
         Ok(())
@@ -268,6 +284,60 @@ mod tests {
             Instruction::Char('1'),
             Instruction::Char('2'),
             Instruction::Char('3'),
+        ];
+
+        assert_eq!(generator.insts, expected)
+    }
+
+    #[test]
+    fn any_regex() {
+        let regex_str = "ab.";
+        let ast = parser::parse(regex_str).unwrap();
+
+        let mut generator = Generator::default();
+
+        generator.gen_expr(&ast).unwrap();
+
+        let expected = vec![
+            Instruction::Char('a'),
+            Instruction::Char('b'),
+            Instruction::Any,
+        ];
+
+        assert_eq!(generator.insts, expected)
+    }
+
+    #[test]
+    fn start_regex() {
+        let regex_str = "^ab";
+        let ast = parser::parse(regex_str).unwrap();
+
+        let mut generator = Generator::default();
+
+        generator.gen_expr(&ast).unwrap();
+
+        let expected = vec![
+            Instruction::Start,
+            Instruction::Char('a'),
+            Instruction::Char('b'),
+        ];
+
+        assert_eq!(generator.insts, expected)
+    }
+
+    #[test]
+    fn end_regex() {
+        let regex_str = "ab$";
+        let ast = parser::parse(regex_str).unwrap();
+
+        let mut generator = Generator::default();
+
+        generator.gen_expr(&ast).unwrap();
+
+        let expected = vec![
+            Instruction::Char('a'),
+            Instruction::Char('b'),
+            Instruction::End,
         ];
 
         assert_eq!(generator.insts, expected)

@@ -56,6 +56,18 @@ pub fn eval_depth(
                 safe_add(&mut pc, &1, || EvalError::PCOverFlow)?;
                 safe_add(&mut sp, &1, || EvalError::SPOverFlow)?;
             }
+            Instruction::Start => {
+                if sp != 0 {
+                    return Ok(false);
+                }
+                safe_add(&mut pc, &1, || EvalError::PCOverFlow)?;
+            }
+            Instruction::End => {
+                if sp != line.len() {
+                    return Ok(false);
+                }
+                safe_add(&mut pc, &1, || EvalError::PCOverFlow)?;
+            }
             Instruction::Match => {
                 return Ok(true);
             }
@@ -81,26 +93,28 @@ fn eval_width(insts: &[Instruction], line: &[char]) -> Result<bool, EvalError> {
         let Some(next) = insts.get(pc) else {
             return Err(EvalError::InvalidPC);
         };
+        dbg!(next, pc, sp);
         match next {
             Instruction::Char(c) => {
-                let Some(sp_c) = line.get(sp) else {
-                    return Err(EvalError::InvalidPC);
-                };
-                if sp_c == c {
-                    safe_add(&mut pc, &1, || EvalError::PCOverFlow)?;
-                    safe_add(&mut sp, &1, || EvalError::SPOverFlow)?;
-                } else {
-                    // 分岐がもうないとき
-                    if queue.is_empty() {
-                        return Ok(false);
+                if let Some(sp_c) = line.get(sp) {
+                    if sp_c == c {
+                        safe_add(&mut pc, &1, || EvalError::PCOverFlow)?;
+                        safe_add(&mut sp, &1, || EvalError::SPOverFlow)?;
                     } else {
-                        let Some(branch) = queue.pop_front() else {
-                            return Err(EvalError::InvalidContext);
-                        };
-                        pc = branch.0;
-                        sp = branch.1;
+                        // 分岐がもうないとき
+                        if queue.is_empty() {
+                            return Ok(false);
+                        } else {
+                            let Some(branch) = queue.pop_front() else {
+                                return Err(EvalError::InvalidContext);
+                            };
+                            pc = branch.0;
+                            sp = branch.1;
+                        }
                     }
-                }
+                } else if queue.is_empty() {
+                    return Ok(false);
+                };
             }
             Instruction::Any => {
                 if line.get(sp).is_none() {
@@ -108,6 +122,32 @@ fn eval_width(insts: &[Instruction], line: &[char]) -> Result<bool, EvalError> {
                 }
                 safe_add(&mut pc, &1, || EvalError::PCOverFlow)?;
                 safe_add(&mut sp, &1, || EvalError::SPOverFlow)?;
+            }
+            Instruction::Start => {
+                if sp == 0 {
+                    safe_add(&mut pc, &1, || EvalError::PCOverFlow)?;
+                } else if queue.is_empty() {
+                    return Ok(false);
+                } else {
+                    let Some(branch) = queue.pop_front() else {
+                        return Err(EvalError::InvalidContext);
+                    };
+                    pc = branch.0;
+                    sp = branch.1;
+                }
+            }
+            Instruction::End => {
+                if sp == line.len() {
+                    safe_add(&mut pc, &1, || EvalError::PCOverFlow)?;
+                } else if queue.is_empty() {
+                    return Ok(false);
+                } else {
+                    let Some(branch) = queue.pop_front() else {
+                        return Err(EvalError::InvalidContext);
+                    };
+                    pc = branch.0;
+                    sp = branch.1;
+                }
             }
             Instruction::Match => {
                 return Ok(true);
@@ -257,6 +297,48 @@ mod tests {
 
         let line = to_chars("a");
         let insts = to_insts(regex);
+
+        let res = eval_depth(&insts, &line, 0, 0).unwrap();
+        assert!(!res);
+
+        let res = eval_width(&insts, &line).unwrap();
+        assert!(!res)
+    }
+
+    #[test]
+    fn test_start() {
+        let regex = "^abc(^def|123)";
+        let line = to_chars("abc123");
+        let insts = to_insts(regex);
+
+        let res = eval_depth(&insts, &line, 0, 0).unwrap();
+        assert!(res);
+
+        let res = eval_width(&insts, &line).unwrap();
+        assert!(res);
+
+        let line = to_chars("abcdef");
+
+        let res = eval_depth(&insts, &line, 0, 0).unwrap();
+        assert!(!res);
+
+        let res = eval_width(&insts, &line).unwrap();
+        assert!(!res)
+    }
+
+    #[test]
+    fn test_end() {
+        let regex = "abc(def|123$)+";
+        let line = to_chars("abc123");
+        let insts = to_insts(regex);
+
+        let res = eval_depth(&insts, &line, 0, 0).unwrap();
+        assert!(res);
+
+        let res = eval_width(&insts, &line).unwrap();
+        assert!(res);
+
+        let line = to_chars("abc123def");
 
         let res = eval_depth(&insts, &line, 0, 0).unwrap();
         assert!(!res);
