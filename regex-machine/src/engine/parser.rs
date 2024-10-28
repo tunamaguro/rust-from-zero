@@ -74,7 +74,7 @@ fn parse_escape(pos: usize, c: char) -> Result<Ast, ParseError> {
     }
 }
 
-enum PSQ {
+enum Psq {
     Plus,
     Star,
     Question,
@@ -85,16 +85,16 @@ enum PSQ {
 /// その前にパターンがない場合はエラー
 fn parse_plus_star_question(
     seq: &mut Vec<Ast>,
-    ast_type: PSQ,
+    ast_type: Psq,
     pos: usize,
 ) -> Result<(), ParseError> {
     // １つ前のパターンを使うので、1つ最後尾から取り出す
     if let Some(prev) = seq.pop() {
         let prev_box = Box::new(prev);
         let ast = match ast_type {
-            PSQ::Plus => Ast::Plus(prev_box),
-            PSQ::Star => Ast::Star(prev_box),
-            PSQ::Question => Ast::Question(prev_box),
+            Psq::Plus => Ast::Plus(prev_box),
+            Psq::Star => Ast::Star(prev_box),
+            Psq::Question => Ast::Question(prev_box),
         };
 
         seq.push(ast);
@@ -136,9 +136,9 @@ pub fn parse(expr: &str) -> Result<Ast, ParseError> {
     for (idx, c) in expr.chars().enumerate() {
         match state {
             ParseState::Char => match c {
-                '+' => parse_plus_star_question(&mut seq, PSQ::Plus, idx)?,
-                '*' => parse_plus_star_question(&mut seq, PSQ::Star, idx)?,
-                '?' => parse_plus_star_question(&mut seq, PSQ::Question, idx)?,
+                '+' => parse_plus_star_question(&mut seq, Psq::Plus, idx)?,
+                '*' => parse_plus_star_question(&mut seq, Psq::Star, idx)?,
+                '?' => parse_plus_star_question(&mut seq, Psq::Question, idx)?,
                 '(' => {
                     // 現在の状態をスタックに避難させる
                     let prev = take(&mut seq);
@@ -230,18 +230,18 @@ mod tests {
     #[test]
     fn valid_plus_star_question() {
         let mut seq = vec![Ast::Char('6')];
-        parse_plus_star_question(&mut seq, PSQ::Plus, 1).unwrap();
+        parse_plus_star_question(&mut seq, Psq::Plus, 1).unwrap();
         assert_eq!(*seq.last().unwrap(), Ast::Plus(Box::new(Ast::Char('6'))));
 
         let mut seq = vec![Ast::Char('j')];
-        parse_plus_star_question(&mut seq, PSQ::Question, 1).unwrap();
+        parse_plus_star_question(&mut seq, Psq::Question, 1).unwrap();
         assert_eq!(
             *seq.last().unwrap(),
             Ast::Question(Box::new(Ast::Char('j')))
         );
 
         let mut seq = vec![Ast::Char('u')];
-        parse_plus_star_question(&mut seq, PSQ::Star, 1).unwrap();
+        parse_plus_star_question(&mut seq, Psq::Star, 1).unwrap();
         assert_eq!(*seq.last().unwrap(), Ast::Star(Box::new(Ast::Char('u'))));
     }
 
@@ -249,7 +249,7 @@ mod tests {
     fn invalid_plus_star_question() {
         let mut seq = vec![];
         assert_eq!(
-            parse_plus_star_question(&mut seq, PSQ::Plus, 1)
+            parse_plus_star_question(&mut seq, Psq::Plus, 1)
                 .err()
                 .unwrap(),
             ParseError::NoPrev(1)
