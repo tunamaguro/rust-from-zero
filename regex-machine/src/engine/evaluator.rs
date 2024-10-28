@@ -31,7 +31,6 @@ pub fn eval_depth(
     mut pc: usize,
     mut sp: usize,
 ) -> Result<bool, EvalError> {
-    dbg!(insts);
     loop {
         let Some(next) = insts.get(pc) else {
             return Err(EvalError::InvalidPC);

@@ -1,5 +1,5 @@
 use super::{parser::AST, Instruction};
-use crate::helper::{safe_add, DynError, SafeAdd};
+use crate::helper::safe_add;
 
 #[derive(Debug)]
 pub enum CodeGenError {
