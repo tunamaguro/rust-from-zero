@@ -16,6 +16,8 @@ pub enum Instruction {
     Jump(usize),
     /// それぞれを検証
     Split(usize, usize),
+    /// どんな文字ともマッチする
+    Any,
 }
 
 impl std::fmt::Display for Instruction {
@@ -25,6 +27,7 @@ impl std::fmt::Display for Instruction {
             Instruction::Match => write!(f, "match"),
             Instruction::Jump(x) => write!(f, "jmp {x:>04}"),
             Instruction::Split(x, y) => write!(f, "split {x:>04}, {y:>04}"),
+            Instruction::Any => write!(f, "any"),
         }
     }
 }

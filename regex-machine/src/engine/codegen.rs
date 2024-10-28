@@ -38,6 +38,7 @@ impl Generator {
             Ast::Question(ast) => self.gen_question(ast),
             Ast::Or(e1, e2) => self.gen_or(e1, e2),
             Ast::Seq(seq) => self.gen_seq(seq),
+            Ast::Any => self.gen_any(),
         }
     }
 
@@ -138,6 +139,13 @@ impl Generator {
             return Err(CodeGenError::FailOr);
         }
 
+        Ok(())
+    }
+
+    fn gen_any(&mut self) -> Result<(), CodeGenError> {
+        let inst = Instruction::Any;
+        self.insts.push(inst);
+        self.inc_pc()?;
         Ok(())
     }
 

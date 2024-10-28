@@ -19,6 +19,8 @@ pub enum Ast {
     Or(Box<Ast>, Box<Ast>),
     /// 複数の正規表現をまとめたもの
     Seq(Vec<Ast>),
+    /// 何らかの文字1文字
+    Any,
 }
 
 /// 正規表現をパースする際のエラー
@@ -64,7 +66,7 @@ impl Error for ParseError {}
 /// 特殊文字のエスケープ
 fn parse_escape(pos: usize, c: char) -> Result<Ast, ParseError> {
     match c {
-        '\\' | '(' | ')' | '|' | '+' | '*' | '?' => Ok(Ast::Char(c)),
+        '\\' | '(' | ')' | '|' | '+' | '*' | '?' | '.' => Ok(Ast::Char(c)),
         _ => {
             let err = ParseError::InvalidEscape(pos, c);
             Err(err)
@@ -171,6 +173,9 @@ pub fn parse(expr: &str) -> Result<Ast, ParseError> {
                     }
                 }
                 '\\' => state = ParseState::Escape,
+                '.' => {
+                    seq.push(Ast::Any);
+                }
                 _ => {
                     seq.push(Ast::Char(c));
                 }

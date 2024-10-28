@@ -48,6 +48,14 @@ pub fn eval_depth(
                     return Ok(false);
                 }
             }
+            Instruction::Any => {
+                if line.get(sp).is_none() {
+                    return Ok(false);
+                };
+
+                safe_add(&mut pc, &1, || EvalError::PCOverFlow)?;
+                safe_add(&mut sp, &1, || EvalError::SPOverFlow)?;
+            }
             Instruction::Match => {
                 return Ok(true);
             }
@@ -93,6 +101,13 @@ fn eval_width(insts: &[Instruction], line: &[char]) -> Result<bool, EvalError> {
                         sp = branch.1;
                     }
                 }
+            }
+            Instruction::Any => {
+                if line.get(sp).is_none() {
+                    return Ok(false);
+                }
+                safe_add(&mut pc, &1, || EvalError::PCOverFlow)?;
+                safe_add(&mut sp, &1, || EvalError::SPOverFlow)?;
             }
             Instruction::Match => {
                 return Ok(true);
@@ -219,6 +234,28 @@ mod tests {
         assert!(res);
 
         let line = to_chars("ab3");
+        let insts = to_insts(regex);
+
+        let res = eval_depth(&insts, &line, 0, 0).unwrap();
+        assert!(!res);
+
+        let res = eval_width(&insts, &line).unwrap();
+        assert!(!res)
+    }
+
+    #[test]
+    fn test_any() {
+        let regex = "a.";
+        let line = to_chars("ab");
+        let insts = to_insts(regex);
+
+        let res = eval_depth(&insts, &line, 0, 0).unwrap();
+        assert!(res);
+
+        let res = eval_width(&insts, &line).unwrap();
+        assert!(res);
+
+        let line = to_chars("a");
         let insts = to_insts(regex);
 
         let res = eval_depth(&insts, &line, 0, 0).unwrap();
