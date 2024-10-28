@@ -4,21 +4,21 @@ use std::{
     mem::take,
 };
 
-/// 正規表現のAST
+/// 正規表現のAst
 #[derive(Debug, PartialEq)]
-pub enum AST {
+pub enum Ast {
     /// 1文字
     Char(char),
     /// 1回以上の繰り返し
-    Plus(Box<AST>),
+    Plus(Box<Ast>),
     /// 0回以上の繰り返し
-    Star(Box<AST>),
+    Star(Box<Ast>),
     /// 高々1回の繰り返し
-    Question(Box<AST>),
+    Question(Box<Ast>),
     /// どっちか
-    Or(Box<AST>, Box<AST>),
+    Or(Box<Ast>, Box<Ast>),
     /// 複数の正規表現をまとめたもの
-    Seq(Vec<AST>),
+    Seq(Vec<Ast>),
 }
 
 /// 正規表現をパースする際のエラー
@@ -62,9 +62,9 @@ impl Display for ParseError {
 impl Error for ParseError {}
 
 /// 特殊文字のエスケープ
-fn parse_escape(pos: usize, c: char) -> Result<AST, ParseError> {
+fn parse_escape(pos: usize, c: char) -> Result<Ast, ParseError> {
     match c {
-        '\\' | '(' | ')' | '|' | '+' | '*' | '?' => Ok(AST::Char(c)),
+        '\\' | '(' | ')' | '|' | '+' | '*' | '?' => Ok(Ast::Char(c)),
         _ => {
             let err = ParseError::InvalidEscape(pos, c);
             Err(err)
@@ -78,11 +78,11 @@ enum PSQ {
     Question,
 }
 
-/// `+`.`*`,`?`をASTに変換する
+/// `+`.`*`,`?`をAstに変換する
 ///
 /// その前にパターンがない場合はエラー
 fn parse_plus_star_question(
-    seq: &mut Vec<AST>,
+    seq: &mut Vec<Ast>,
     ast_type: PSQ,
     pos: usize,
 ) -> Result<(), ParseError> {
@@ -90,9 +90,9 @@ fn parse_plus_star_question(
     if let Some(prev) = seq.pop() {
         let prev_box = Box::new(prev);
         let ast = match ast_type {
-            PSQ::Plus => AST::Plus(prev_box),
-            PSQ::Star => AST::Star(prev_box),
-            PSQ::Question => AST::Question(prev_box),
+            PSQ::Plus => Ast::Plus(prev_box),
+            PSQ::Star => Ast::Star(prev_box),
+            PSQ::Question => Ast::Question(prev_box),
         };
 
         seq.push(ast);
@@ -102,13 +102,13 @@ fn parse_plus_star_question(
     }
 }
 
-/// `|`をASTに変換する
-fn fold_or(mut seq_or: Vec<AST>) -> Option<AST> {
+/// `|`をAstに変換する
+fn fold_or(mut seq_or: Vec<Ast>) -> Option<Ast> {
     if seq_or.len() > 1 {
         let mut ast = seq_or.pop()?;
         seq_or.reverse();
         for s in seq_or {
-            ast = AST::Or(Box::new(s), Box::new(ast))
+            ast = Ast::Or(Box::new(s), Box::new(ast))
         }
         Some(ast)
     } else {
@@ -124,7 +124,7 @@ enum ParseState {
     Escape,
 }
 
-pub fn parse(expr: &str) -> Result<AST, ParseError> {
+pub fn parse(expr: &str) -> Result<Ast, ParseError> {
     let mut seq = Vec::new();
     let mut seq_or = Vec::new();
     // `()`が出てきたときに、それ以前の値を取っておく場所
@@ -151,7 +151,7 @@ pub fn parse(expr: &str) -> Result<AST, ParseError> {
                     // `(abc|def)`みたいなときに`def`が`seq`に入ってるので、`seq_or`に追加する
                     // `()`みたいなときは何もしない
                     if !seq.is_empty() {
-                        seq_or.push(AST::Seq(seq));
+                        seq_or.push(Ast::Seq(seq));
                     }
 
                     if let Some(ast) = fold_or(seq_or) {
@@ -167,12 +167,12 @@ pub fn parse(expr: &str) -> Result<AST, ParseError> {
                         return Err(ParseError::NoPrev(idx));
                     } else {
                         let prev = take(&mut seq);
-                        seq_or.push(AST::Seq(prev));
+                        seq_or.push(Ast::Seq(prev));
                     }
                 }
                 '\\' => state = ParseState::Escape,
                 _ => {
-                    seq.push(AST::Char(c));
+                    seq.push(Ast::Char(c));
                 }
             },
             ParseState::Escape => {
@@ -190,7 +190,7 @@ pub fn parse(expr: &str) -> Result<AST, ParseError> {
     };
 
     if !seq.is_empty() {
-        seq_or.push(AST::Seq(seq));
+        seq_or.push(Ast::Seq(seq));
     };
 
     if let Some(ast) = fold_or(seq_or) {
@@ -206,8 +206,8 @@ mod tests {
 
     #[test]
     fn valid_parse_escape() {
-        assert_eq!(parse_escape(3, '+').unwrap(), AST::Char('+'));
-        assert_eq!(parse_escape(1, '|').unwrap(), AST::Char('|'))
+        assert_eq!(parse_escape(3, '+').unwrap(), Ast::Char('+'));
+        assert_eq!(parse_escape(1, '|').unwrap(), Ast::Char('|'))
     }
 
     #[test]
@@ -224,20 +224,20 @@ mod tests {
 
     #[test]
     fn valid_plus_star_question() {
-        let mut seq = vec![AST::Char('6')];
+        let mut seq = vec![Ast::Char('6')];
         parse_plus_star_question(&mut seq, PSQ::Plus, 1).unwrap();
-        assert_eq!(*seq.last().unwrap(), AST::Plus(Box::new(AST::Char('6'))));
+        assert_eq!(*seq.last().unwrap(), Ast::Plus(Box::new(Ast::Char('6'))));
 
-        let mut seq = vec![AST::Char('j')];
+        let mut seq = vec![Ast::Char('j')];
         parse_plus_star_question(&mut seq, PSQ::Question, 1).unwrap();
         assert_eq!(
             *seq.last().unwrap(),
-            AST::Question(Box::new(AST::Char('j')))
+            Ast::Question(Box::new(Ast::Char('j')))
         );
 
-        let mut seq = vec![AST::Char('u')];
+        let mut seq = vec![Ast::Char('u')];
         parse_plus_star_question(&mut seq, PSQ::Star, 1).unwrap();
-        assert_eq!(*seq.last().unwrap(), AST::Star(Box::new(AST::Char('u'))));
+        assert_eq!(*seq.last().unwrap(), Ast::Star(Box::new(Ast::Char('u'))));
     }
 
     #[test]
@@ -255,40 +255,40 @@ mod tests {
     fn valid_or() {
         // abc|123
         let seq = vec![
-            AST::Seq(vec![AST::Char('a'), AST::Char('b'), AST::Char('c')]),
-            AST::Seq(vec![AST::Char('1'), AST::Char('2'), AST::Char('3')]),
+            Ast::Seq(vec![Ast::Char('a'), Ast::Char('b'), Ast::Char('c')]),
+            Ast::Seq(vec![Ast::Char('1'), Ast::Char('2'), Ast::Char('3')]),
         ];
 
         let res = fold_or(seq).unwrap();
 
         assert_eq!(
             res,
-            AST::Or(
-                Box::new(AST::Seq(vec![
-                    AST::Char('a'),
-                    AST::Char('b'),
-                    AST::Char('c')
+            Ast::Or(
+                Box::new(Ast::Seq(vec![
+                    Ast::Char('a'),
+                    Ast::Char('b'),
+                    Ast::Char('c')
                 ])),
-                Box::new(AST::Seq(vec![
-                    AST::Char('1'),
-                    AST::Char('2'),
-                    AST::Char('3')
+                Box::new(Ast::Seq(vec![
+                    Ast::Char('1'),
+                    Ast::Char('2'),
+                    Ast::Char('3')
                 ]))
             )
         );
 
         // foo
-        let seq = vec![AST::Seq(vec![
-            AST::Char('f'),
-            AST::Char('o'),
-            AST::Char('o'),
+        let seq = vec![Ast::Seq(vec![
+            Ast::Char('f'),
+            Ast::Char('o'),
+            Ast::Char('o'),
         ])];
 
         let res = fold_or(seq).unwrap();
 
         assert_eq!(
             res,
-            AST::Seq(vec![AST::Char('f'), AST::Char('o'), AST::Char('o'),])
+            Ast::Seq(vec![Ast::Char('f'), Ast::Char('o'), Ast::Char('o'),])
         )
     }
 
@@ -309,7 +309,7 @@ mod tests {
 
         assert_eq!(
             ast,
-            AST::Seq(vec![AST::Char('a'), AST::Char('b'), AST::Char('c'),])
+            Ast::Seq(vec![Ast::Char('a'), Ast::Char('b'), Ast::Char('c'),])
         )
     }
 
@@ -321,12 +321,12 @@ mod tests {
 
         assert_eq!(
             ast,
-            AST::Seq(vec![
-                AST::Char('1'),
-                AST::Char('?'),
-                AST::Char('*'),
-                AST::Char('2'),
-                AST::Char('3')
+            Ast::Seq(vec![
+                Ast::Char('1'),
+                Ast::Char('?'),
+                Ast::Char('*'),
+                Ast::Char('2'),
+                Ast::Char('3')
             ])
         )
     }
@@ -339,8 +339,8 @@ mod tests {
 
         assert_eq!(
             ast,
-            AST::Seq(vec![AST::Star(Box::new(AST::Plus(Box::new(
-                AST::Question(Box::new(AST::Char('b')))
+            Ast::Seq(vec![Ast::Star(Box::new(Ast::Plus(Box::new(
+                Ast::Question(Box::new(Ast::Char('b')))
             ))))])
         )
     }
@@ -353,16 +353,16 @@ mod tests {
 
         assert_eq!(
             ast,
-            AST::Or(
-                Box::new(AST::Seq(vec![
-                    AST::Char('a'),
-                    AST::Char('b'),
-                    AST::Char('c'),
+            Ast::Or(
+                Box::new(Ast::Seq(vec![
+                    Ast::Char('a'),
+                    Ast::Char('b'),
+                    Ast::Char('c'),
                 ])),
-                Box::new(AST::Seq(vec![
-                    AST::Char('1'),
-                    AST::Char('2'),
-                    AST::Char('3'),
+                Box::new(Ast::Seq(vec![
+                    Ast::Char('1'),
+                    Ast::Char('2'),
+                    Ast::Char('3'),
                 ]))
             )
         )
@@ -376,14 +376,14 @@ mod tests {
 
         assert_eq!(
             ast,
-            AST::Seq(vec![AST::Seq(vec![
-                AST::Char('a'),
-                AST::Char('b'),
-                AST::Char('c'),
-                AST::Seq(vec![AST::Char('1'), AST::Char('2'), AST::Char('3'),]),
-                AST::Char('d'),
-                AST::Char('e'),
-                AST::Char('f')
+            Ast::Seq(vec![Ast::Seq(vec![
+                Ast::Char('a'),
+                Ast::Char('b'),
+                Ast::Char('c'),
+                Ast::Seq(vec![Ast::Char('1'), Ast::Char('2'), Ast::Char('3'),]),
+                Ast::Char('d'),
+                Ast::Char('e'),
+                Ast::Char('f')
             ]),])
         )
     }

@@ -42,7 +42,7 @@ impl std::fmt::Display for Instruction {
 pub fn print(expr: &str) -> Result<(), DynError> {
     let ast = parser::parse(expr)?;
 
-    println!("AST: {ast:?}");
+    println!("Ast: {ast:?}");
 
     let code = codegen::get_code(&ast).map_err(Box::new)?;
     let code = code.iter().map(|inst| inst.to_string()).collect::<Vec<_>>();

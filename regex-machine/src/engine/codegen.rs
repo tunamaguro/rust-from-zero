@@ -1,4 +1,4 @@
-use super::{parser::AST, Instruction};
+use super::{parser::Ast, Instruction};
 use crate::helper::safe_add;
 
 #[derive(Debug)]
@@ -30,14 +30,14 @@ impl Generator {
         safe_add(&mut self.pc, &1, || CodeGenError::PCOverFlow)
     }
 
-    fn gen_expr(&mut self, ast: &AST) -> Result<(), CodeGenError> {
+    fn gen_expr(&mut self, ast: &Ast) -> Result<(), CodeGenError> {
         match ast {
-            AST::Char(c) => self.gen_char(c),
-            AST::Plus(ast) => self.gen_plus(ast),
-            AST::Star(ast) => self.gen_star(ast),
-            AST::Question(ast) => self.gen_question(ast),
-            AST::Or(e1, e2) => self.gen_or(e1, e2),
-            AST::Seq(seq) => self.gen_seq(seq),
+            Ast::Char(c) => self.gen_char(c),
+            Ast::Plus(ast) => self.gen_plus(ast),
+            Ast::Star(ast) => self.gen_star(ast),
+            Ast::Question(ast) => self.gen_question(ast),
+            Ast::Or(e1, e2) => self.gen_or(e1, e2),
+            Ast::Seq(seq) => self.gen_seq(seq),
         }
     }
 
@@ -48,14 +48,14 @@ impl Generator {
         Ok(())
     }
 
-    fn gen_seq(&mut self, exprs: &[AST]) -> Result<(), CodeGenError> {
+    fn gen_seq(&mut self, exprs: &[Ast]) -> Result<(), CodeGenError> {
         for e in exprs {
             self.gen_expr(e)?
         }
         Ok(())
     }
 
-    fn gen_plus(&mut self, ast: &AST) -> Result<(), CodeGenError> {
+    fn gen_plus(&mut self, ast: &Ast) -> Result<(), CodeGenError> {
         let start_addr = self.pc;
         self.gen_expr(ast)?;
 
@@ -66,7 +66,7 @@ impl Generator {
         Ok(())
     }
 
-    fn gen_star(&mut self, ast: &AST) -> Result<(), CodeGenError> {
+    fn gen_star(&mut self, ast: &Ast) -> Result<(), CodeGenError> {
         let split_addr = self.pc;
         self.inc_pc()?;
 
@@ -89,7 +89,7 @@ impl Generator {
         Ok(())
     }
 
-    fn gen_question(&mut self, ast: &AST) -> Result<(), CodeGenError> {
+    fn gen_question(&mut self, ast: &Ast) -> Result<(), CodeGenError> {
         let split_addr = self.pc;
         self.inc_pc()?;
         // 次の行に飛ぶか、その終わりに飛ぶか。`ast`の次の行は`ast`を生成しないと値が分からないので、仮に0を設定しておく
@@ -107,7 +107,7 @@ impl Generator {
         Ok(())
     }
 
-    fn gen_or(&mut self, e1: &AST, e2: &AST) -> Result<(), CodeGenError> {
+    fn gen_or(&mut self, e1: &Ast, e2: &Ast) -> Result<(), CodeGenError> {
         // `split`がある行
         let split_addr = self.pc;
         self.inc_pc()?;
@@ -141,7 +141,7 @@ impl Generator {
         Ok(())
     }
 
-    fn gen_code(&mut self, ast: &AST) -> Result<(), CodeGenError> {
+    fn gen_code(&mut self, ast: &Ast) -> Result<(), CodeGenError> {
         self.gen_expr(ast)?;
         self.inc_pc()?;
         self.insts.push(Instruction::Match);
@@ -149,7 +149,7 @@ impl Generator {
     }
 }
 
-pub fn get_code(ast: &AST) -> Result<Vec<Instruction>, CodeGenError> {
+pub fn get_code(ast: &Ast) -> Result<Vec<Instruction>, CodeGenError> {
     let mut generator = Generator::default();
     generator.gen_code(ast)?;
     Ok(generator.insts)
